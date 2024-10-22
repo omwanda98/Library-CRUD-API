@@ -1,108 +1,85 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using LibraryAPI.Data;
 using LibraryAPI.Models;
+using LibraryAPI.Data;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 
-namespace LibraryAPI.Controllers
+[Route("api/[controller]")]
+[ApiController]
+public class BooksController : ControllerBase
 {
-    [Route("api/[controller]")]
-    [ApiController]
-    public class BooksController : ControllerBase
+    private readonly LibraryAPIContext _context;
+
+    public BooksController(LibraryAPIContext context)
     {
-        private readonly LibraryAPIContext _context;
+        _context = context;
+    }
 
-        public BooksController(LibraryAPIContext context)
+    // GET: api/Books (Accessible by both Admin and User)
+    [HttpGet]
+    [Authorize]
+    public async Task<ActionResult<IEnumerable<Book>>> GetBooks()
+    {
+        return await _context.Book.ToListAsync();
+    }
+
+    // GET: api/Books/5 (Accessible by both Admin and User)
+    [HttpGet("{id}")]
+    [Authorize]
+    public async Task<ActionResult<Book>> GetBook(int id)
+    {
+        var book = await _context.Book.FindAsync(id);
+        if (book == null)
         {
-            _context = context;
+            return NotFound();
         }
 
-        // GET: api/Books
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<Book>>> GetBook()
+        return book;
+    }
+
+    // POST: api/Books (Accessible only by Admin)
+    [HttpPost]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<ActionResult<Book>> PostBook(Book book)
+    {
+        _context.Book.Add(book);
+        await _context.SaveChangesAsync();
+
+        return CreatedAtAction(nameof(GetBook), new { id = book.id }, book);
+    }
+
+    // PUT: api/Books/5 (Accessible only by Admin)
+    [HttpPut("{id}")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> PutBook(int id, Book book)
+    {
+        if (id != book.id)
         {
-            return await _context.Book.ToListAsync();
+            return BadRequest();
         }
 
-        // GET: api/Books/5
-        [HttpGet("{id}")]
-        public async Task<ActionResult<Book>> GetBook(int id)
+        _context.Entry(book).State = EntityState.Modified;
+        await _context.SaveChangesAsync();
+
+        return NoContent();
+    }
+
+    // DELETE: api/Books/5 (Accessible only by Admin)
+    [HttpDelete("{id}")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> DeleteBook(int id)
+    {
+        var book = await _context.Book.FindAsync(id);
+        if (book == null)
         {
-            var book = await _context.Book.FindAsync(id);
-
-            if (book == null)
-            {
-                return NotFound();
-            }
-
-            return book;
+            return NotFound();
         }
 
-        // PUT: api/Books/5
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
-        [HttpPut("{id}")]
-        public async Task<IActionResult> PutBook(int id, Book book)
-        {
-            if (id != book.id)
-            {
-                return BadRequest();
-            }
+        _context.Book.Remove(book);
+        await _context.SaveChangesAsync();
 
-            _context.Entry(book).State = EntityState.Modified;
-
-            try
-            {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!BookExists(id))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
-            }
-
-            return NoContent();
-        }
-
-        // POST: api/Books
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
-        [HttpPost]
-        public async Task<ActionResult<Book>> PostBook(Book book)
-        {
-            _context.Book.Add(book);
-            await _context.SaveChangesAsync();
-
-            return CreatedAtAction("GetBook", new { id = book.id }, book);
-        }
-
-        // DELETE: api/Books/5
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteBook(int id)
-        {
-            var book = await _context.Book.FindAsync(id);
-            if (book == null)
-            {
-                return NotFound();
-            }
-
-            _context.Book.Remove(book);
-            await _context.SaveChangesAsync();
-
-            return NoContent();
-        }
-
-        private bool BookExists(int id)
-        {
-            return _context.Book.Any(e => e.id == id);
-        }
+        return NoContent();
     }
 }
